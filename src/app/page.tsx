@@ -30,25 +30,25 @@ const DEFAULT_CHARACTERS: Character[] = [
   {
     id: 'james',
     name: 'James',
-    description: 'A black and white border collie stuffed animal, loyal and brave, floppy ears',
+    description: 'a border collie stuffed animal toy with black and white fur, floppy ears',
     isDefault: true,
   },
   {
     id: 'cheetah',
     name: 'Cheetah',
-    description: 'A cheetah stuffed animal with yellow fur and black spots, wears cool sunglasses, carries a skateboard, confident attitude',
+    description: 'a cheetah stuffed animal toy with spotted fur, wearing sunglasses, holding a skateboard',
     isDefault: true,
   },
   {
     id: 'red',
     name: 'Red',
-    description: 'A red panda stuffed animal with reddish-brown and white fur, wears a backwards baseball cap, rides a small scooter, friendly grin',
+    description: 'a red panda stuffed animal toy with reddish-brown fur, wearing a backwards baseball cap, standing on a scooter',
     isDefault: true,
   },
   {
     id: 'bowie',
     name: 'Bowie',
-    description: 'A small white poodle stuffed animal with heterochromia (two different colored eyes - one blue, one brown), fluffy curly fur, nervous but sweet',
+    description: 'a white poodle stuffed animal toy with curly fur, one blue eye and one brown eye, looking nervous',
     isDefault: true,
   },
 ]
@@ -153,6 +153,8 @@ Given characters and a story idea, create a 6-page story outline. Each page shou
 1. A visual scene description (what to draw - be specific about character poses, setting, action)
 2. 1-2 short dialogue lines
 
+IMPORTANT: Each character is a STUFFED ANIMAL TOY. Always describe them as "stuffed animal toy" in the scene descriptions.
+
 Output as JSON array with this format:
 [
   {
@@ -196,24 +198,23 @@ Keep it fun, age-appropriate for 5-7 year olds, with a simple adventure arc (beg
     }))
   }
 
-  // Generate a single image using Replicate (via API route) with retry logic
+  // Generate a single image using Replicate FLUX Schnell
   const generateImage = async (page: Page, retryCount = 0): Promise<string> => {
     const maxRetries = 5
     const selectedChars = characters.filter(c => selectedCharacters.includes(c.id))
     const charDescriptions = selectedChars.map(c => `${c.name} (${c.description})`).join(', ')
     
-    const prompt = `Black and white coloring book page, clean line art, simple outlines, no shading, no color, no grayscale, white background, children's coloring book style, cute cartoon characters:
+    // FLUX Schnell prompt - more direct style instruction
+    const prompt = `A children's coloring book page illustration. Black ink outlines only on pure white background. No color, no shading, no gray tones, no gradients. Simple clean lines suitable for a child to color in with crayons.
 
-${page.description}
+Scene: ${page.description}
 
-Characters as cute stuffed animal toys: ${charDescriptions}
+The characters are cute stuffed animal toys: ${charDescriptions}
 
-Style: clean black outlines only, no filled areas, no shading, no gray, pure white background, simple line drawing for kids to color`
-
-    const negativePrompt = 'color, colored, shading, gradient, gray, grayscale, realistic, photograph, complex, detailed shading, shadows, 3d, render'
+Style: Black and white line art, coloring book page, bold outlines, no fill, white background, simple cartoon style`
 
     try {
-      // Start the prediction via our API route
+      // Start the prediction via our API route - using FLUX Schnell
       const startResponse = await fetch('/api/replicate', {
         method: 'POST',
         headers: {
@@ -222,17 +223,13 @@ Style: clean black outlines only, no filled areas, no shading, no gray, pure whi
         body: JSON.stringify({
           action: 'start',
           replicateKey: replicateKey,
-          version: 'a00d0b7dcbb9c3fbb34ba87d2d5b46c56969c84a628bf778a7fdaec30b1b99c5',
+          version: 'black-forest-labs/flux-schnell',
           input: {
             prompt: prompt,
-            negative_prompt: negativePrompt,
-            width: 768,
-            height: 1024,
             num_outputs: 1,
-            scheduler: 'K_EULER',
-            num_inference_steps: 30,
-            guidance_scale: 7.5,
-            refine: 'no_refiner',
+            aspect_ratio: '3:4',
+            output_format: 'png',
+            output_quality: 90,
           },
         }),
       })
@@ -243,7 +240,7 @@ Style: clean black outlines only, no filled areas, no shading, no gray, pure whi
       if (startResponse.status === 429 || responseData.detail?.includes('throttled')) {
         if (retryCount < maxRetries) {
           console.log(`Rate limited, waiting 12 seconds before retry ${retryCount + 1}/${maxRetries}...`)
-          await delay(12000) // Wait 12 seconds
+          await delay(12000)
           return generateImage(page, retryCount + 1)
         } else {
           throw new Error('Rate limit exceeded after maximum retries')
@@ -284,8 +281,9 @@ Style: clean black outlines only, no filled areas, no shading, no gray, pure whi
         throw new Error(result.error || 'Image generation failed')
       }
 
-      // Return the image URL
-      return result.output[0]
+      // FLUX returns array of URLs
+      const output = result.output
+      return Array.isArray(output) ? output[0] : output
     } catch (err: any) {
       // Retry on rate limit errors
       if (err.message?.includes('throttled') || err.message?.includes('429')) {
