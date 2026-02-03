@@ -54,7 +54,7 @@ const DEFAULT_CHARACTERS: Character[] = [
 ]
 
 // Style prompt suffix for coloring book aesthetic
-const COLORING_BOOK_STYLE = "children's coloring book illustration style, clean bold black outlines, simple shapes, no shading, no color fills, white background, friendly cartoon aesthetic, suitable for kids to color in"
+const COLORING_BOOK_STYLE = "children's coloring book illustration style, pure black line art only, clean bold black outlines on white background, simple shapes, absolutely no shading, no gray tones, no gradients, no color fills, no hatching, white background, friendly cartoon aesthetic, suitable for kids to color in with crayons"
 
 export default function Home() {
   // State
@@ -194,7 +194,9 @@ Keep it fun, age-appropriate for 5-7 year olds, with a simple adventure arc (beg
 
 Characters in scene: ${charDescriptions}
 
-Style: ${COLORING_BOOK_STYLE}`
+Style: ${COLORING_BOOK_STYLE}
+
+IMPORTANT: Do NOT include any text, words, letters, numbers, or writing of any kind in the image.`
 
     const response = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
