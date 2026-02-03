@@ -53,6 +53,9 @@ const DEFAULT_CHARACTERS: Character[] = [
   },
 ]
 
+// Helper function to delay execution
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
 export default function Home() {
   // State
   const [openaiKey, setOpenaiKey] = useState('')
@@ -193,8 +196,9 @@ Keep it fun, age-appropriate for 5-7 year olds, with a simple adventure arc (beg
     }))
   }
 
-  // Generate a single image using Replicate (via API route)
-  const generateImage = async (page: Page): Promise<string> => {
+  // Generate a single image using Replicate (via API route) with retry logic
+  const generateImage = async (page: Page, retryCount = 0): Promise<string> => {
+    const maxRetries = 5
     const selectedChars = characters.filter(c => selectedCharacters.includes(c.id))
     const charDescriptions = selectedChars.map(c => `${c.name} (${c.description})`).join(', ')
     
@@ -208,67 +212,91 @@ Style: clean black outlines only, no filled areas, no shading, no gray, pure whi
 
     const negativePrompt = 'color, colored, shading, gradient, gray, grayscale, realistic, photograph, complex, detailed shading, shadows, 3d, render'
 
-    // Start the prediction via our API route
-    const startResponse = await fetch('/api/replicate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        action: 'start',
-        replicateKey: replicateKey,
-        version: 'a00d0b7dcbb9c3fbb34ba87d2d5b46c56969c84a628bf778a7fdaec30b1b99c5',
-        input: {
-          prompt: prompt,
-          negative_prompt: negativePrompt,
-          width: 768,
-          height: 1024,
-          num_outputs: 1,
-          scheduler: 'K_EULER',
-          num_inference_steps: 30,
-          guidance_scale: 7.5,
-          refine: 'no_refiner',
-        },
-      }),
-    })
-
-    if (!startResponse.ok) {
-      const err = await startResponse.json()
-      throw new Error(err.detail || 'Failed to start image generation')
-    }
-
-    const prediction = await startResponse.json()
-    
-    // Poll for completion via our API route
-    let result = prediction
-    while (result.status !== 'succeeded' && result.status !== 'failed') {
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      const pollResponse = await fetch('/api/replicate', {
+    try {
+      // Start the prediction via our API route
+      const startResponse = await fetch('/api/replicate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          action: 'poll',
+          action: 'start',
           replicateKey: replicateKey,
-          predictionId: result.id,
+          version: 'a00d0b7dcbb9c3fbb34ba87d2d5b46c56969c84a628bf778a7fdaec30b1b99c5',
+          input: {
+            prompt: prompt,
+            negative_prompt: negativePrompt,
+            width: 768,
+            height: 1024,
+            num_outputs: 1,
+            scheduler: 'K_EULER',
+            num_inference_steps: 30,
+            guidance_scale: 7.5,
+            refine: 'no_refiner',
+          },
         }),
       })
-      
-      if (!pollResponse.ok) {
-        throw new Error('Failed to check generation status')
+
+      const responseData = await startResponse.json()
+
+      // Check for rate limiting
+      if (startResponse.status === 429 || responseData.detail?.includes('throttled')) {
+        if (retryCount < maxRetries) {
+          console.log(`Rate limited, waiting 12 seconds before retry ${retryCount + 1}/${maxRetries}...`)
+          await delay(12000) // Wait 12 seconds
+          return generateImage(page, retryCount + 1)
+        } else {
+          throw new Error('Rate limit exceeded after maximum retries')
+        }
       }
+
+      if (!startResponse.ok) {
+        throw new Error(responseData.detail || 'Failed to start image generation')
+      }
+
+      const prediction = responseData
       
-      result = await pollResponse.json()
-    }
+      // Poll for completion via our API route
+      let result = prediction
+      while (result.status !== 'succeeded' && result.status !== 'failed') {
+        await delay(2000)
+        
+        const pollResponse = await fetch('/api/replicate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            action: 'poll',
+            replicateKey: replicateKey,
+            predictionId: result.id,
+          }),
+        })
+        
+        if (!pollResponse.ok) {
+          throw new Error('Failed to check generation status')
+        }
+        
+        result = await pollResponse.json()
+      }
 
-    if (result.status === 'failed') {
-      throw new Error(result.error || 'Image generation failed')
-    }
+      if (result.status === 'failed') {
+        throw new Error(result.error || 'Image generation failed')
+      }
 
-    // Return the image URL
-    return result.output[0]
+      // Return the image URL
+      return result.output[0]
+    } catch (err: any) {
+      // Retry on rate limit errors
+      if (err.message?.includes('throttled') || err.message?.includes('429')) {
+        if (retryCount < maxRetries) {
+          console.log(`Rate limited (catch), waiting 12 seconds before retry ${retryCount + 1}/${maxRetries}...`)
+          await delay(12000)
+          return generateImage(page, retryCount + 1)
+        }
+      }
+      throw err
+    }
   }
 
   // Main generation flow
@@ -300,7 +328,7 @@ Style: clean black outlines only, no filled areas, no shading, no gray, pure whi
       }
       setStory(newStory)
 
-      // Step 2: Generate images for each page
+      // Step 2: Generate images for each page (with delay between requests)
       for (let i = 0; i < pages.length; i++) {
         setStory(prev => {
           if (!prev) return prev
@@ -335,9 +363,9 @@ Style: clean black outlines only, no filled areas, no shading, no gray, pure whi
           })
         }
 
-        // Small delay between requests
+        // Wait 12 seconds between requests to avoid rate limiting
         if (i < pages.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 500))
+          await delay(12000)
         }
       }
 
@@ -633,7 +661,7 @@ Style: clean black outlines only, no filled areas, no shading, no gray, pure whi
           </div>
 
           <p className="text-center text-gray-500 mt-6">
-            This takes about 2-3 minutes. Each image costs ~$0.02-0.05.
+            This takes about 2-3 minutes. Waiting between images to avoid rate limits.
           </p>
         </div>
       )}
