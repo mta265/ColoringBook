@@ -2,17 +2,23 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   const body = await request.json()
-  const { action, replicateKey, predictionId, ...rest } = body
+  const { action, replicateKey, predictionId, version, ...rest } = body
 
   if (action === 'start') {
-    // Start a new prediction
+    // Check if using official model format (org/model) vs version hash
+    const isOfficialModel = version && version.includes('/')
+    
+    const requestBody = isOfficialModel 
+      ? { model: version, ...rest }
+      : { version, ...rest }
+
     const response = await fetch('https://api.replicate.com/v1/predictions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Token ${replicateKey}`,
       },
-      body: JSON.stringify(rest),
+      body: JSON.stringify(requestBody),
     })
 
     const data = await response.json()
@@ -20,7 +26,6 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === 'poll') {
-    // Check prediction status
     const response = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
       headers: {
         'Authorization': `Token ${replicateKey}`,
