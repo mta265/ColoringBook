@@ -2,23 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   const body = await request.json()
-  const { action, replicateKey, predictionId, version, ...rest } = body
+  const { action, replicateKey, predictionId, ...rest } = body
 
   if (action === 'start') {
-    // Check if using official model format (org/model) vs version hash
-    const isOfficialModel = version && version.includes('/')
-    
-    const requestBody = isOfficialModel 
-      ? { model: version, ...rest }
-      : { version, ...rest }
-
     const response = await fetch('https://api.replicate.com/v1/predictions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Token ${replicateKey}`,
       },
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify(rest),
     })
 
     const data = await response.json()
