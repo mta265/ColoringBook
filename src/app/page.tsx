@@ -223,7 +223,7 @@ Style: Black and white line art, coloring book page, bold outlines, no fill, whi
         body: JSON.stringify({
           action: 'start',
           replicateKey: replicateKey,
-          version: 'black-forest-labs/flux-schnell',
+          version: '5599ed30703defd1d160a25a63321b4dec97101d98b4674bcc56e41f62f35637',
           input: {
             prompt: prompt,
             num_outputs: 1,
