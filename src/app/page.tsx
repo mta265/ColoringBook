@@ -193,7 +193,7 @@ Keep it fun, age-appropriate for 5-7 year olds, with a simple adventure arc (beg
     }))
   }
 
-  // Generate a single image using Replicate
+  // Generate a single image using Replicate (via API route)
   const generateImage = async (page: Page): Promise<string> => {
     const selectedChars = characters.filter(c => selectedCharacters.includes(c.id))
     const charDescriptions = selectedChars.map(c => `${c.name} (${c.description})`).join(', ')
@@ -208,14 +208,15 @@ Style: clean black outlines only, no filled areas, no shading, no gray, pure whi
 
     const negativePrompt = 'color, colored, shading, gradient, gray, grayscale, realistic, photograph, complex, detailed shading, shadows, 3d, render'
 
-    // Start the prediction
-    const startResponse = await fetch('https://api.replicate.com/v1/predictions', {
+    // Start the prediction via our API route
+    const startResponse = await fetch('/api/replicate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Token ${replicateKey}`,
       },
       body: JSON.stringify({
+        action: 'start',
+        replicateKey: replicateKey,
         version: 'a00d0b7dcbb9c3fbb34ba87d2d5b46c56969c84a628bf778a7fdaec30b1b99c5',
         input: {
           prompt: prompt,
@@ -238,15 +239,21 @@ Style: clean black outlines only, no filled areas, no shading, no gray, pure whi
 
     const prediction = await startResponse.json()
     
-    // Poll for completion
+    // Poll for completion via our API route
     let result = prediction
     while (result.status !== 'succeeded' && result.status !== 'failed') {
       await new Promise(resolve => setTimeout(resolve, 2000))
       
-      const pollResponse = await fetch(`https://api.replicate.com/v1/predictions/${result.id}`, {
+      const pollResponse = await fetch('/api/replicate', {
+        method: 'POST',
         headers: {
-          'Authorization': `Token ${replicateKey}`,
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          action: 'poll',
+          replicateKey: replicateKey,
+          predictionId: result.id,
+        }),
       })
       
       if (!pollResponse.ok) {
