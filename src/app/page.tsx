@@ -15,7 +15,6 @@ interface Page {
   description: string
   dialogue: string[]
   imageUrl?: string
-  lineArtUrl?: string
   status: 'pending' | 'generating' | 'done' | 'error'
 }
 
@@ -30,25 +29,25 @@ const DEFAULT_CHARACTERS: Character[] = [
   {
     id: 'james',
     name: 'James',
-    description: 'a border collie stuffed animal toy with black and white fur, floppy ears',
+    description: 'a border collie stuffed animal plush toy, black and white fur, floppy ears, button eyes',
     isDefault: true,
   },
   {
     id: 'cheetah',
     name: 'Cheetah',
-    description: 'a cheetah stuffed animal toy with spotted fur, wearing sunglasses, holding a skateboard',
+    description: 'a cheetah stuffed animal plush toy, yellow with black spots, wearing sunglasses, holding a skateboard, button eyes',
     isDefault: true,
   },
   {
     id: 'red',
     name: 'Red',
-    description: 'a red panda stuffed animal toy with reddish-brown fur, wearing a backwards baseball cap, standing on a scooter',
+    description: 'a red panda stuffed animal plush toy, reddish-brown and white fur, wearing a backwards baseball cap, on a scooter, button eyes',
     isDefault: true,
   },
   {
     id: 'bowie',
     name: 'Bowie',
-    description: 'a white poodle stuffed animal toy with curly fur, one blue eye and one brown eye, looking nervous',
+    description: 'a white poodle stuffed animal plush toy, curly fur, one blue button eye and one brown button eye, nervous expression',
     isDefault: true,
   },
 ]
@@ -60,8 +59,8 @@ export default function Home() {
   // State
   const [openaiKey, setOpenaiKey] = useState('')
   const [openaiKeyInput, setOpenaiKeyInput] = useState('')
-  const [replicateKey, setReplicateKey] = useState('')
-  const [replicateKeyInput, setReplicateKeyInput] = useState('')
+  const [falKey, setFalKey] = useState('')
+  const [falKeyInput, setFalKeyInput] = useState('')
   const [characters, setCharacters] = useState<Character[]>(DEFAULT_CHARACTERS)
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>(['james', 'cheetah'])
   const [storyPrompt, setStoryPrompt] = useState('')
@@ -78,10 +77,10 @@ export default function Home() {
   // Load API keys from localStorage on mount
   useEffect(() => {
     const savedOpenaiKey = localStorage.getItem('openai_api_key')
-    const savedReplicateKey = localStorage.getItem('replicate_api_key')
-    if (savedOpenaiKey && savedReplicateKey) {
+    const savedFalKey = localStorage.getItem('fal_api_key')
+    if (savedOpenaiKey && savedFalKey) {
       setOpenaiKey(savedOpenaiKey)
-      setReplicateKey(savedReplicateKey)
+      setFalKey(savedFalKey)
       setCurrentStep('characters')
     }
   }, [])
@@ -92,15 +91,15 @@ export default function Home() {
       setError('Invalid OpenAI API key format. It should start with "sk-"')
       return
     }
-    if (!replicateKeyInput.startsWith('r8_')) {
-      setError('Invalid Replicate API key format. It should start with "r8_"')
+    if (!falKeyInput.includes(':')) {
+      setError('Invalid Fal.ai API key format. It should contain a colon (:)')
       return
     }
     
     localStorage.setItem('openai_api_key', openaiKeyInput)
-    localStorage.setItem('replicate_api_key', replicateKeyInput)
+    localStorage.setItem('fal_api_key', falKeyInput)
     setOpenaiKey(openaiKeyInput)
-    setReplicateKey(replicateKeyInput)
+    setFalKey(falKeyInput)
     setCurrentStep('characters')
     setError(null)
   }
@@ -153,13 +152,13 @@ Given characters and a story idea, create a 6-page story outline. Each page shou
 1. A visual scene description (what to draw - be specific about character poses, setting, action)
 2. 1-2 short dialogue lines
 
-IMPORTANT: Each character is a STUFFED ANIMAL TOY. Always describe them as "stuffed animal toy" in the scene descriptions.
+CRITICAL: Each character is a STUFFED ANIMAL PLUSH TOY with button eyes. They are NOT real animals. Always describe them as "stuffed animal plush toy" in EVERY scene description. Mention their button eyes.
 
 Output as JSON array with this format:
 [
   {
     "pageNumber": 1,
-    "sceneDescription": "detailed visual description for the illustrator",
+    "sceneDescription": "detailed visual description for the illustrator - must mention stuffed animal plush toy",
     "dialogue": ["Character: Line 1", "Character: Line 2"]
   }
 ]
@@ -168,7 +167,7 @@ Keep it fun, age-appropriate for 5-7 year olds, with a simple adventure arc (beg
           },
           {
             role: 'user',
-            content: `Characters:\n${charDescriptions}\n\nStory idea: ${storyPrompt}\n\nCreate a 6-page coloring book story.`
+            content: `Characters:\n${charDescriptions}\n\nStory idea: ${storyPrompt}\n\nCreate a 6-page coloring book story. Remember: all characters are stuffed animal plush toys with button eyes.`
           }
         ],
         temperature: 0.8,
@@ -198,100 +197,61 @@ Keep it fun, age-appropriate for 5-7 year olds, with a simple adventure arc (beg
     }))
   }
 
-  // Generate a single image using Replicate FLUX Schnell
+  // Generate a single image using Fal.ai FLUX
   const generateImage = async (page: Page, retryCount = 0): Promise<string> => {
-    const maxRetries = 5
+    const maxRetries = 3
     const selectedChars = characters.filter(c => selectedCharacters.includes(c.id))
-    const charDescriptions = selectedChars.map(c => `${c.name} (${c.description})`).join(', ')
+    const charDescriptions = selectedChars.map(c => `${c.name}: ${c.description}`).join('; ')
     
-    // FLUX Schnell prompt - more direct style instruction
-    const prompt = `A children's coloring book page illustration. Black ink outlines only on pure white background. No color, no shading, no gray tones, no gradients. Simple clean lines suitable for a child to color in with crayons.
+    // Coloring book style prompt for FLUX
+    const prompt = `Black and white children's coloring book page. Clean black ink outlines only on pure white background. No color, no shading, no gray tones, no gradients, no fills. Simple bold lines for a child to color with crayons.
 
-Scene: ${page.description}
+${page.description}
 
-The characters are cute stuffed animal toys: ${charDescriptions}
+Characters (all are cute stuffed animal plush toys with button eyes): ${charDescriptions}
 
-Style: Black and white line art, coloring book page, bold outlines, no fill, white background, simple cartoon style`
+Style: Coloring book line art, black outlines only, white background, no shading, no color, simple cartoon, bold clean lines, children's book illustration`
 
     try {
-      // Start the prediction via our API route - using FLUX Schnell
-      const startResponse = await fetch('/api/replicate', {
+      const response = await fetch('/api/fal', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          action: 'start',
-          replicateKey: replicateKey,
-          version: '5599ed30703defd1d160a25a63321b4dec97101d98b4674bcc56e41f62f35637',
-          input: {
-            prompt: prompt,
-            num_outputs: 1,
-            aspect_ratio: '3:4',
-            output_format: 'png',
-            output_quality: 90,
-          },
+          falKey: falKey,
+          prompt: prompt,
+          image_size: 'portrait_4_3',
+          num_inference_steps: 4,
+          enable_safety_checker: false,
         }),
       })
 
-      const responseData = await startResponse.json()
+      const data = await response.json()
 
-      // Check for rate limiting
-      if (startResponse.status === 429 || responseData.detail?.includes('throttled')) {
-        if (retryCount < maxRetries) {
-          console.log(`Rate limited, waiting 12 seconds before retry ${retryCount + 1}/${maxRetries}...`)
-          await delay(12000)
-          return generateImage(page, retryCount + 1)
-        } else {
-          throw new Error('Rate limit exceeded after maximum retries')
+      if (!response.ok) {
+        // Check for rate limiting
+        if (response.status === 429) {
+          if (retryCount < maxRetries) {
+            console.log(`Rate limited, waiting 10 seconds before retry ${retryCount + 1}/${maxRetries}...`)
+            await delay(10000)
+            return generateImage(page, retryCount + 1)
+          }
         }
+        throw new Error(data.detail || data.error || 'Failed to generate image')
       }
 
-      if (!startResponse.ok) {
-        throw new Error(responseData.detail || 'Failed to start image generation')
+      // Fal.ai returns images array
+      if (data.images && data.images.length > 0) {
+        return data.images[0].url
       }
-
-      const prediction = responseData
       
-      // Poll for completion via our API route
-      let result = prediction
-      while (result.status !== 'succeeded' && result.status !== 'failed') {
-        await delay(2000)
-        
-        const pollResponse = await fetch('/api/replicate', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            action: 'poll',
-            replicateKey: replicateKey,
-            predictionId: result.id,
-          }),
-        })
-        
-        if (!pollResponse.ok) {
-          throw new Error('Failed to check generation status')
-        }
-        
-        result = await pollResponse.json()
-      }
-
-      if (result.status === 'failed') {
-        throw new Error(result.error || 'Image generation failed')
-      }
-
-      // FLUX returns array of URLs
-      const output = result.output
-      return Array.isArray(output) ? output[0] : output
+      throw new Error('No image returned from Fal.ai')
     } catch (err: any) {
-      // Retry on rate limit errors
-      if (err.message?.includes('throttled') || err.message?.includes('429')) {
-        if (retryCount < maxRetries) {
-          console.log(`Rate limited (catch), waiting 12 seconds before retry ${retryCount + 1}/${maxRetries}...`)
-          await delay(12000)
-          return generateImage(page, retryCount + 1)
-        }
+      if (retryCount < maxRetries && (err.message?.includes('rate') || err.message?.includes('429'))) {
+        console.log(`Error, waiting 10 seconds before retry ${retryCount + 1}/${maxRetries}...`)
+        await delay(10000)
+        return generateImage(page, retryCount + 1)
       }
       throw err
     }
@@ -326,7 +286,7 @@ Style: Black and white line art, coloring book page, bold outlines, no fill, whi
       }
       setStory(newStory)
 
-      // Step 2: Generate images for each page (with delay between requests)
+      // Step 2: Generate images for each page
       for (let i = 0; i < pages.length; i++) {
         setStory(prev => {
           if (!prev) return prev
@@ -361,9 +321,9 @@ Style: Black and white line art, coloring book page, bold outlines, no fill, whi
           })
         }
 
-        // Wait 12 seconds between requests to avoid rate limiting
+        // Small delay between requests
         if (i < pages.length - 1) {
-          await delay(12000)
+          await delay(2000)
         }
       }
 
@@ -463,16 +423,16 @@ Style: Black and white line art, coloring book page, bold outlines, no fill, whi
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Replicate API Key (for image generation)
+                Fal.ai API Key (for image generation)
               </label>
               <p className="text-gray-500 text-sm mb-2">
-                Get one at <a href="https://replicate.com/account/api-tokens" target="_blank" className="text-blue-600 underline">replicate.com/account/api-tokens</a>
+                Get one at <a href="https://fal.ai/dashboard/keys" target="_blank" className="text-blue-600 underline">fal.ai/dashboard/keys</a>
               </p>
               <input
                 type="password"
-                value={replicateKeyInput}
-                onChange={(e) => setReplicateKeyInput(e.target.value)}
-                placeholder="r8_..."
+                value={falKeyInput}
+                onChange={(e) => setFalKeyInput(e.target.value)}
+                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:..."
                 className="w-full border rounded px-3 py-2"
               />
             </div>
@@ -539,7 +499,7 @@ Style: Black and white line art, coloring book page, bold outlines, no fill, whi
                 className="w-full border rounded px-3 py-2 mb-2"
               />
               <textarea
-                placeholder="Description (e.g., an orange tabby cat with a red bow tie, playful and curious)"
+                placeholder="Description (e.g., an orange tabby cat stuffed animal plush toy with button eyes)"
                 value={newCharDesc}
                 onChange={(e) => setNewCharDesc(e.target.value)}
                 className="w-full border rounded px-3 py-2 mb-2 h-20"
@@ -565,9 +525,9 @@ Style: Black and white line art, coloring book page, bold outlines, no fill, whi
             <button
               onClick={() => {
                 setOpenaiKey('')
-                setReplicateKey('')
+                setFalKey('')
                 localStorage.removeItem('openai_api_key')
-                localStorage.removeItem('replicate_api_key')
+                localStorage.removeItem('fal_api_key')
                 setCurrentStep('setup')
               }}
               className="text-gray-600 hover:underline"
@@ -659,7 +619,7 @@ Style: Black and white line art, coloring book page, bold outlines, no fill, whi
           </div>
 
           <p className="text-center text-gray-500 mt-6">
-            This takes about 2-3 minutes. Waiting between images to avoid rate limits.
+            This takes about 1-2 minutes. Fal.ai is fast!
           </p>
         </div>
       )}
